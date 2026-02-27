@@ -7,6 +7,9 @@ from transformer import transform_dataframe
 st.set_page_config(page_title="Registration CSV Formatter", layout="wide")
 
 st.title("Registration CSV Formatter")
+st.info(
+    "⚠️ If this app was idle, the first load may take 30–60 seconds while the server wakes up (Render free tier behavior)."
+)
 st.caption("Upload a raw registration CSV and download an upload-ready CSV in the required format.")
 
 uploaded = st.file_uploader("Upload CSV", type=["csv"])
