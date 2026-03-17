@@ -264,39 +264,58 @@ def transform_dataframe(df_raw: pd.DataFrame) -> Tuple[pd.DataFrame, List[str], 
     coach_email = _get_series(df, mapping.coach_email, "lower")
     coach_phone = _get_series(df, mapping.coach_phone, "phone")
 
-    # Primary contact A–D: Manager → Coach → Placeholder
-    placeholder_primary_rows = 0
-    invalid_mobile_fixed_rows = 0
+    # Primary contact A–D: Manager → Coach → Staff → Placeholder
+# IMPORTANT:
+# - If email is missing, use placeholder email BUT keep real names
+# - If phone is missing/invalid, use placeholder phone
+# - Only use TEAM / MANAGER if no usable contact exists at all
 
-    a_first, a_last, a_email, a_mobile = [], [], [], []
-    for i in range(len(df)):
-        mgr_has = any([mgr_first.iat[i], mgr_last.iat[i], mgr_email.iat[i], mgr_phone.iat[i]])
-        coach_has = any([coach_first.iat[i], coach_last.iat[i], coach_email.iat[i], coach_phone.iat[i]])
+placeholder_primary_rows = 0
+invalid_mobile_fixed_rows = 0
 
-        if mgr_has:
-            pf, pl, pe, pm = mgr_first.iat[i], mgr_last.iat[i], mgr_email.iat[i], mgr_phone.iat[i]
-        elif coach_has:
-            pf, pl, pe, pm = coach_first.iat[i], coach_last.iat[i], coach_email.iat[i], coach_phone.iat[i]
-        else:
-            pf, pl, pe, pm = PLACEHOLDER_FIRST, PLACEHOLDER_LAST, PLACEHOLDER_EMAIL, PLACEHOLDER_MOBILE
-            placeholder_primary_rows += 1
+a_first, a_last, a_email, a_mobile = [], [], [], []
+for i in range(len(df)):
+    mgr_has = any([mgr_first.iat[i], mgr_last.iat[i], mgr_email.iat[i], mgr_phone.iat[i]])
+    coach_has = any([coach_first.iat[i], coach_last.iat[i], coach_email.iat[i], coach_phone.iat[i]])
+    staff_has = any([staff_first.iat[i], staff_last.iat[i], staff_email.iat[i], staff_phone.iat[i]])
 
-        # Required defaults within chosen source
+    if mgr_has:
+        pf, pl, pe, pm = mgr_first.iat[i], mgr_last.iat[i], mgr_email.iat[i], mgr_phone.iat[i]
+    elif coach_has:
+        pf, pl, pe, pm = coach_first.iat[i], coach_last.iat[i], coach_email.iat[i], coach_phone.iat[i]
+    elif staff_has:
+        pf, pl, pe, pm = staff_first.iat[i], staff_last.iat[i], staff_email.iat[i], staff_phone.iat[i]
+    else:
+        pf, pl, pe, pm = "", "", "", ""
+
+    # Field-level fallback logic
+    # Keep real names whenever they exist.
+    # Only use TEAM / MANAGER if no usable contact exists at all.
+    no_real_contact = not any([pf, pl, pe, pm])
+
+    if no_real_contact:
+        pf = PLACEHOLDER_FIRST
+        pl = PLACEHOLDER_LAST
+        pe = PLACEHOLDER_EMAIL
+        pm = PLACEHOLDER_MOBILE
+        placeholder_primary_rows += 1
+    else:
+        # Preserve names if present
         pf = pf or PLACEHOLDER_FIRST
         pl = pl or PLACEHOLDER_LAST
-        pe = pe or PLACEHOLDER_EMAIL
-        pm = pm or PLACEHOLDER_MOBILE
 
-        # Validate primary mobile after cleaning: must be 10 digits; else placeholder
+        # Missing email gets placeholder, but names stay
+        pe = pe or PLACEHOLDER_EMAIL
+
+        # Missing/invalid phone gets placeholder
         if not _is_valid_10_digit_phone(pm):
             pm = PLACEHOLDER_MOBILE
-            pe = pe or PLACEHOLDER_EMAIL
             invalid_mobile_fixed_rows += 1
 
-        a_first.append(pf)
-        a_last.append(pl)
-        a_email.append(pe)
-        a_mobile.append(pm)
+    a_first.append(pf)
+    a_last.append(pl)
+    a_email.append(pe.lower() if pe else PLACEHOLDER_EMAIL.lower())
+    a_mobile.append(pm)
 
     out["first_name"] = a_first
     out["last_name"] = a_last
